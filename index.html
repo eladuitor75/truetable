@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Generador de Tablas de Verdad</title>
+  <style>
+    /* ======== ESTILOS BÁSICOS DE PÁGINA ======== */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f0f0f0;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    
+    /* ======== CONTENEDOR PRINCIPAL ======== */
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 5px;
+      padding: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    /* ======== DISPLAY DE LA CALCULADORA ======== */
+    #display {
+      width: 100%;
+      height: 50px;
+      font-size: 1.2rem;
+      text-align: right;
+      padding: 5px;
+      box-sizing: border-box;
+      background-color: #e0e0e0;
+      border: 1px solid #ccc;
+      margin-bottom: 10px;
+    }
+
+    /* ======== BOTONES ======== */
+    .calc-buttons {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .calc-buttons button {
+      padding: 15px;
+      font-size: 1rem;
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      background-color: #1976d2;
+      color: #fff;
+    }
+    .calc-buttons button:hover {
+      background-color: #1565c0;
+    }
+    
+    /* ======== RESULTADOS ======== */
+    #truthTableContainer {
+      margin-top: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: center;
+      margin-top: 10px;
+    }
+    table thead tr {
+      background-color: #1976d2;
+      color: #fff;
+    }
+    table, th, td {
+      border: 1px solid #ccc;
+    }
+    th, td {
+      padding: 8px;
+    }
+    .highlight {
+      font-weight: bold;
+      color: #d32f2f;
+    }
+  </style>
+</head>
+<body>
+  <h1>Generador de Tablas de Verdad</h1>
+  <div class="container">
+    <h2>Calculadora Lógica</h2>
+
+    <!-- Display donde se muestra la fórmula -->
+    <input type="text" id="display" placeholder="Ejemplo: ~(p∧q)->s" readonly />
+
+    <!-- Botones de la calculadora -->
+    <div class="calc-buttons">
+      <button onclick="clearAll()">AC</button>
+      <button onclick="delChar()">DEL</button>
+      <button onclick="addSymbol('(')">(</button>
+      <button onclick="addSymbol(')')">)</button>
+
+      <button onclick="addSymbol('~')">~</button>
+      <button onclick="addSymbol('∧')">∧</button>
+      <button onclick="addSymbol('∨')">∨</button>
+      <button onclick="addSymbol('→')">→</button>
+
+      <button onclick="addSymbol('p')">p</button>
+      <button onclick="addSymbol('q')">q</button>
+      <button onclick="addSymbol('r')">r</button>
+      <button onclick="addSymbol('s')">s</button>
+
+      <button onclick="addSymbol('↔')">↔</button>
+      <button onclick="addSymbol('⊕')">⊕</button>
+      <button onclick="generateTruthTable()">=</button>
+      <button onclick="addSymbol(' ')">Espacio</button>
+    </div>
+
+    <!-- Contenedor donde se mostrará la tabla de verdad generada -->
+    <div id="truthTableContainer"></div>
+  </div>
+
+  <script>
+    /*
+     ==============================================================
+     = 2. LÓGICA DE LA CALCULADORA (MANEJO DEL DISPLAY)           =
+     ==============================================================
+    */
+    const display = document.getElementById('display');
+
+    // Añade un símbolo al display
+    function addSymbol(symbol) {
+      display.value += symbol;
+    }
+
+    // Borra todo el contenido del display
+    function clearAll() {
+      display.value = '';
+      document.getElementById('truthTableContainer').innerHTML = '';
+    }
+
+    // Borra el último carácter del display
+    function delChar() {
+      display.value = display.value.slice(0, -1);
+    }
+
+    /*
+     ==============================================================
+     = 3. GENERAR Y MOSTRAR LA TABLA DE VERDAD                    =
+     ==============================================================
+    */
+
+    // Función principal que se llama al pulsar '='
+    function generateTruthTable() {
+      const formula = display.value.trim();
+      if(!formula) return;
+
+      // 1. Extraer variables proposicionales
+      //    (Suponiendo que solo usamos letras p, q, r, s, etc.)
+      const variables = extractVariables(formula);
+
+      // 2. Crear todas las combinaciones V/F para dichas variables
+      const combinations = getAllCombinations(variables.length);
+
+      // 3. Evaluar la fórmula en cada combinación
+      const results = combinations.map(combination => {
+        // Se mapea cada variable a True/False
+        const assignment = {};
+        for(let i = 0; i < variables.length; i++){
+          assignment[variables[i]] = combination[i]; 
+        }
+        // Evaluar
+        const value = evaluateFormula(formula, assignment);
+        return { assignment, value };
+      });
+
+      // 4. Construir la tabla HTML
+      const tableHTML = buildTableHTML(variables, results, formula);
+
+      // 5. Mostrar la tabla en el contenedor
+      document.getElementById('truthTableContainer').innerHTML = tableHTML;
+    }
+
+    /*
+     ================ 3.1 EXTRAER VARIABLES ================
+     */
+    function extractVariables(formula) {
+      const setVars = new Set();
+      for(let char of formula){
+        // Consideramos como variables las letras (p, q, r, s, etc.)
+        if(/[a-z]/i.test(char)){ 
+          setVars.add(char);
+        }
+      }
+      // Convertimos a array y lo ordenamos alfabéticamente
+      return Array.from(setVars).sort();
+    }
+
+    /*
+     ================ 3.2 OBTENER TODAS LAS COMBINACIONES ================
+     (True/False) para n variables
+    */
+    function getAllCombinations(n) {
+      // 2^n combinaciones
+      const total = 1 << n; // 2^n usando bit shifts
+      const result = [];
+      for(let i = 0; i < total; i++){
+        const combo = [];
+        for(let bit = 0; bit < n; bit++){
+          // Se comprueba si el bit 'bit' está activo en i
+          const value = !!(i & (1 << bit));
+          combo.push(value);
+        }
+        result.push(combo);
+      }
+      return result;
+    }
+
+    /*
+     ================ 3.3 EVALUAR LA FÓRMULA ================
+     Se hace un reemplazo de conectores y variables por su 
+     equivalente en JavaScript, luego se usa 'eval'.
+    */
+    function evaluateFormula(formula, assignment) {
+      // 1. Reemplazar variables p,q,r,s... por true/false
+      let expr = formula;
+      for(let variable in assignment){
+        // regex que reemplace todas las apariciones de la variable
+        const regex = new RegExp(variable, 'g');
+        expr = expr.replace(regex, assignment[variable] ? 'true' : 'false');
+      }
+
+      // 2. Reemplazar conectores por operadores JS
+      // ~ -> not: usaremos ! en JS
+      expr = expr.replace(/~/g, '!');
+      // ∧ -> &&
+      expr = expr.replace(/∧/g, '&&');
+      // ∨ -> ||
+      expr = expr.replace(/∨/g, '||');
+      // → (implicación): A→B es (!A || B)
+      //   Esto requiere un reemplazo algo más complejo si hay espacios
+      //   Para simplificar, transformaremos 'A→B' en '( !A || B )'
+      expr = replaceImplications(expr);
+      // ↔ (equivalencia): A↔B es (A == B) en JS
+      expr = expr.replace(/↔/g, '==');
+      // ⊕ (xor): A⊕B es (A != B) en JS
+      expr = expr.replace(/⊕/g, '!=');
+
+      // 3. Evaluar con eval. Es conveniente capturar errores
+      try {
+        const result = eval(expr);
+        return !!result;  // Convertir a booleano
+      } catch (e) {
+        console.warn("Error evaluando expresión:", expr, e);
+        return false;
+      }
+    }
+
+    /*
+     ================ Reemplazo de implicaciones A→B -> (!A || B)  ================
+     */
+    function replaceImplications(expr) {
+      // Método sencillo: mientras haya '->', lo reemplazamos por la forma ( !A || B )
+      // Esto es complejo si hay paréntesis anidados. 
+      // Para un prototipo, haremos un reemplazo manual simple
+      // con una RegExp que busque patrón: "algo → algo"
+      
+      // En principio, una forma naive: buscamos coincidencias del símbolo '→'
+      // y tomamos el fragmento de la izquierda y la derecha
+      // Nota: en proyectos grandes, conviene parsear un árbol sintáctico.
+
+      while (expr.includes('→')) {
+        // Buscar la posición del conector
+        let index = expr.indexOf('→');
+        
+        // Buscar subexpresión izquierda y derecha
+        // Método: iremos hacia atrás/buscar final de la subexpresión y hacia delante. 
+        // Para ser didáctico, mostramos un método muy simplificado:
+
+        // Subexpresión izquierda
+        let left = getSubExpression(expr, index - 1, true);
+        // Subexpresión derecha
+        let right = getSubExpression(expr, index + 1, false);
+
+        // Reemplazar en la cadena
+        // Estructura: left→right -> ( !left || right )
+        const oldPiece = left + '→' + right;
+        const newPiece = '( !(' + left + ') || (' + right + ') )';
+        expr = expr.replace(oldPiece, newPiece);
+      }
+      return expr;
+    }
+
+    /*
+     ================ Obtener subexpresión a izquierda o derecha ================
+     isLeft = true => recupera la subfórmula a la izquierda
+     isLeft = false => recupera la subfórmula a la derecha
+    */
+    function getSubExpression(expr, startIndex, isLeft) {
+      // Si hay paréntesis, intentar capturar la subexpresión. 
+      // Este método es MUY simplificado:
+      // - Si vemos un ) a la izquierda, iremos abriendo paréntesis
+      // - Si vemos un ( a la derecha, idem.
+      // - De lo contrario, tomamos solo un token "true/false" o una variable
+      // Esto basta como ejemplo. Para casos complejos, se requiere un parser real.
+
+      if(isLeft){
+        // Si el caracter en startIndex es ')', tratamos de encontrar el '(' emparejado.
+        // Si no, asumimos que es un token simple (true, false, !true, variable, etc.)
+        if(expr[startIndex] === ')'){
+          // vamos abriendo paréntesis
+          let count = 1;
+          let i = startIndex - 1;
+          while(i >= 0 && count > 0){
+            if(expr[i] === ')') count++;
+            else if(expr[i] === '(') count--;
+            i--;
+          }
+          // La subexpresión va desde i+1 hasta startIndex
+          return expr.substring(i+1, startIndex+1);
+        } else {
+          // Tomar token hasta encontrar un espacio o un paréntesis
+          // Buscamos separadores
+          let i = startIndex;
+          while(i >= 0 && !/\s|\(|\)|!|&|\||=/.test(expr[i])){
+            i--;
+          }
+          return expr.substring(i+1, startIndex+1);
+        }
+      } else {
+        // Parte derecha
+        if(expr[startIndex] === '→') startIndex++; // Si quedó un "→" rezagado
+        if(expr[startIndex] === '('){
+          // Tenemos un paréntesis
+          let count = 1;
+          let i = startIndex + 1;
+          while(i < expr.length && count > 0){
+            if(expr[i] === '(') count++;
+            else if(expr[i] === ')') count--;
+            i++;
+          }
+          // subexpresión: desde startIndex hasta i-1
+          return expr.substring(startIndex, i);
+        } else {
+          // Token simple
+          let i = startIndex;
+          while(i < expr.length && !/\s|\(|\)|!|&|\||=/.test(expr[i])){
+            i++;
+          }
+          return expr.substring(startIndex, i);
+        }
+      }
+    }
+
+    /*
+     ================ 3.4 CONSTRUIR TABLA HTML ================
+    */
+    function buildTableHTML(variables, results, formula) {
+      let html = `<h3>Tabla de Verdad para: <span class="highlight">${formula}</span></h3>`;
+      
+      // Encabezado
+      html += `<table><thead><tr>`;
+      variables.forEach(v => {
+        html += `<th>${v}</th>`;
+      });
+      html += `<th>Valor</th></tr></thead><tbody>`;
+
+      // Filas
+      let trueCount = 0;
+      results.forEach(row => {
+        html += `<tr>`;
+        variables.forEach(v => {
+          html += `<td>${row.assignment[v] ? 'V' : 'F'}</td>`;
+        });
+        html += `<td>${row.value ? 'V' : 'F'}</td>`;
+        html += `</tr>`;
+        if(row.value) trueCount++;
+      });
+
+      html += `</tbody></table>`;
+
+      // Determinar si tautología, contradicción o contingencia
+      const totalRows = results.length;
+      if(trueCount === totalRows){
+        html += `<p><strong>Resultado:</strong> Es una <span class="highlight">TAUTOLOGÍA</span>.</p>`;
+      } else if(trueCount === 0){
+        html += `<p><strong>Resultado:</strong> Es una <span class="highlight">CONTRADICCIÓN</span>.</p>`;
+      } else {
+        html += `<p><strong>Resultado:</strong> Es una <span class="highlight">FÓRMULA CONTINGENTE</span>.</p>`;
+      }
+
+      return html;
+    }
+  </script>
+</body>
+</html>
